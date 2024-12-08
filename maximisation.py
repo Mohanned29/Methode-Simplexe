@@ -1,4 +1,5 @@
 import numpy as np
+from constraint import Problem, AllDifferentConstraint
 
 """                       MADE BY JINX                           """
 
@@ -27,8 +28,9 @@ def get_user_input():
                 print("Entrée invalide, entrez un nombre.") 
 
     print("\nEntrez les contraintes (forme ≤):")
+    num_constraints = int(input("Combien de contraintes souhaitez-vous ajouter? : "))
     constraints = [] 
-    for i in range(num_vars + 1): 
+    for i in range(num_constraints): 
         constraint = [] 
         print(f"\nContrainte {i+1}:") 
         for j in range(num_vars): 
@@ -55,7 +57,8 @@ def get_user_input():
     for i, constraint in enumerate(constraints):
         print(f"  {i+1}: {constraint[0]}x1 + {constraint[1]}x2 <= {constraint[2]}")
 
-    return obj_coeffs, constraints 
+    return obj_coeffs, constraints, num_constraints 
+
 
 def convert_to_canonical_form(obj_coeffs, constraints): 
     """Convertit la fonction et les contraintes en forme canonique."""
@@ -74,8 +77,34 @@ def convert_to_canonical_form(obj_coeffs, constraints):
     
     return canonical_matrix, full_obj_coeffs 
 
-def simplex_solve(obj_coeffs, constraints): 
-    """Résout le problème avec la méthode du Simplexe."""
+
+def constraint_programming_solve(obj_coeffs, constraints, num_vars):
+    """Résolution par Programmation par Contraintes."""
+    prob = Problem()
+
+    variables = [f"x{i+1}" for i in range(num_vars)]
+    for var in variables:
+        prob.addVariable(var, range(101))  # Limiter les variables à des valeurs entre 0 et 100 (ou autre borne)
+
+    # Ajouter les contraintes
+    for i, constraint in enumerate(constraints):
+        expr = []
+        for j in range(num_vars):
+            expr.append((f"x{j+1}", constraint[j]))  # Coefficients des variables
+        prob.addConstraint(lambda *args: sum([args[i] * expr[i][1] for i in range(num_vars)]) <= expr[-1][-1], variables)
+
+    def objective(*args):
+        return sum(obj_coeffs[i] * args[i] for i in range(len(obj_coeffs)))
+
+    prob.addConstraint(objective, variables)
+
+    #trouver la meilleure solution
+    solution = prob.getSolution()
+    return solution 
+
+
+def simplex_solve_with_cp(obj_coeffs, constraints, num_vars): 
+    """Résolution par la méthode Simplexe et Programmation par Contraintes."""  
     tableau, obj_coeffs = convert_to_canonical_form(obj_coeffs, constraints) 
     
     num_vars = len(obj_coeffs) - len(constraints) 
@@ -124,6 +153,7 @@ def simplex_solve(obj_coeffs, constraints):
     
     return solution, -tableau[-1, -1] 
 
+
 def determine_leaving_variable(tableau, enter_col): 
     """Détermine la variable sortante."""
     ratios = [] 
@@ -137,6 +167,7 @@ def determine_leaving_variable(tableau, enter_col):
         return None 
     
     return np.argmin(ratios) 
+
 
 def print_tableau(tableau, obj_coeffs, base_vars): 
     """Affiche le tableau du Simplexe"""
@@ -157,20 +188,20 @@ def print_tableau(tableau, obj_coeffs, base_vars):
             print(f"{val:10.2f}", end=" ") 
         print() 
 
+
 def main(): 
     print("=== Solveur de Programmation Linéaire - Méthode du Simplexe ===") 
     
-    obj_coeffs, constraints = get_user_input() 
+    obj_coeffs, constraints, num_constraints = get_user_input() 
     
     obj_coeffs = np.array(obj_coeffs) 
     constraints = np.array(constraints) 
-    solution = simplex_solve(obj_coeffs, constraints) 
-    
-    if solution: 
-        print("\n=== Résultat Optimal ===") 
-        for i, val in enumerate(solution[0]): 
-            print(f"x{i+1} = {val:.2f}") 
-        print(f"Valeur optimale = {solution[1]:.2f}") 
+  
+    solution = constraint_programming_solve(obj_coeffs, constraints, len(obj_coeffs)) 
+    print("\n=== Résultat avec Programmation par Contraintes ===")
+    for var, value in solution.items():
+        print(f"{var} = {value:.2f}")
+    print(f"Valeur optimale = {sum(obj_coeffs[i] * solution[f'x{i+1}'] for i in range(len(obj_coeffs))):.2f}")
 
 if __name__ == "__main__":
     main()
